@@ -1,12 +1,33 @@
 [project]
 name = "multi-object-tracking"
 version = "0.1.0"
-description = "Add your description here"
+description = "Implementation of MOT methods"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "autopep8>=2.3.2",
     "loguru>=0.7.3",
+    "pre-commit>=4.6.0",
     "pytest>=9.1.1",
     "torch>=2.12.1",
     "torchvision>=0.27.1",
 ]
+
+[build-system]
+requires = ["setuptools>=72"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "detectors*", "trackers*", "evaluation*", "visualization*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.autopep8]
+max_line_length = 120
+ignore = "E501,W6"  # or ["E501", "W6"]
+in-place = true
+recursive = true
+aggressive = 3
