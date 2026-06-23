@@ -7,6 +7,7 @@ requires-python = ">=3.14"
 dependencies = [
     "autopep8>=2.3.2",
     "loguru>=0.7.3",
+    "opencv-python>=4.13.0.92",
     "pre-commit>=4.6.0",
     "pytest>=9.1.1",
     "torch>=2.12.1",
@@ -19,7 +20,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "detectors*", "trackers*", "evaluation*", "visualization*"]
+include = ["core*", "detectors*", "trackers*", "evaluation*", "visualization*", "datasets"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
