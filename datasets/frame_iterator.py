@@ -26,7 +26,7 @@ class Frame:
 
     index: int
     image: np.ndarray
-    detection: list[Detection] = field(default_factory=list)
+    detections: list[Detection] = field(default_factory=list)
 
 class FrameIterator:
     """
@@ -55,7 +55,7 @@ class FrameIterator:
         self._validate()
     
     def __iter__(self) -> Generator[Frame, None, None]:
-        yield from self.iter_video()
+        yield from self._iter_video()
     
     def __len__(self) -> int:
         """
@@ -92,9 +92,10 @@ class FrameIterator:
                     detections = [d for d in detections if d.score >= self.conf_threshold]
                 
                 yield Frame(index=frame_index, image=image, detections=detections)
+                frame_index += 1
         finally:
             cap.release()
-            logger.inof(f"Video capture released after {frame_index} frames.")
+            logger.info(f"Video capture released after {frame_index} frames.")
     
     def _validate(self) -> None:
 
