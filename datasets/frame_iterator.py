@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from pathlib import path
+from pathlib import Path
 from typing import Generator, Literal
 
 import cv2
@@ -10,7 +10,7 @@ import numpy as np
 from loguru import logger
 
 from core.detection import Detection
-from detector.base import BaseDetector
+from detectors.base import BaseDetector
 
 
 @dataclass
@@ -26,7 +26,7 @@ class Frame:
 
     index: int
     image: np.ndarray
-    detection: list[Detection] = field(default_feactory=list)
+    detection: list[Detection] = field(default_factory=list)
 
 class FrameIterator:
     """
@@ -45,7 +45,7 @@ class FrameIterator:
     def __init__(
         self,
         source: str | Path,
-        detector: BaseDetector
+        detector: BaseDetector,
         conf_threshold: float = 0.0
     ) -> None:
         self.source = Path(source)
