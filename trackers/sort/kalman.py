@@ -209,7 +209,7 @@ class KalmanBoxTracker:
         #Innovation
         y = z - self._H @ self._x
         #innovation covariance
-        S = self._H @ self._P @ self._H  + self._R
+        S = self._H @ self._P @ self._H.T  + self._R
 
         #Kalman gain
         #Use numpy linalgera solve for stability instead of inverting S
