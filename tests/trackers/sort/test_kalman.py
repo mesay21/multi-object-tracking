@@ -17,6 +17,7 @@ Tests covered:
 from __future__ import annotations
 from shutil import make_archive
 import traceback
+from unittest import result
 
 from _pytest.monkeypatch import K
 import numpy as np
@@ -429,7 +430,50 @@ class TestNoiseTuning:
         assert high_pv.covariance[4, 4] > low_pv.covariance[4, 4]
 
 class TestEdgeCases:
-    ...
+    
+    def test_tiny_box_crash(self):
+        """
+        Tiny box sizes should not crash the filter.
+        """
+        det = make_detection(x1=0.0, y1=0.0, x2=2.0, y2=2.0, score=0.9, class_id=1)
+        tracker = KalmanBoxTracker(det)
+        result = tracker.predict()
+        assert_valid_detections(result)
+    
+    def test_large_box_crash(self):
+        """
+        Large box sizes should not crash the filter.
+        """
+        det = make_detection(x1=0.0, y1=0.0, x2=3840.0, y2=2160.0, score=0.9, class_id=1)
+        tracker = KalmanBoxTracker(det)
+        result = tracker.predict()
+        assert_valid_detections(result)
+    
+    def test_no_nan_from_missed_frames(self):
+        """
+        Many missed frames/measurement should not cause NaN.
+        """
+        tracker = make_tracker()
+        for _ in range(500):
+            tracker.predict()
+        state = tracker.get_state()
+        for val in [state.x1, state.y1, state.x2, state.y2]:
+            assert np.isfinite(val)
+    def test_far_update_crash(self):
+        """
+        Update using far detection should not crash the filter.
+        """
+        tracker = make_tracker()
+        far_det = make_detection(x1=5000, y1=5000, x2=5100, y2=5200)
+        tracker.predict()
+        tracker.update(far_det)
+        assert_valid_detections(tracker.get_state())
+    
+    def test_square_detection(self):
+        det = make_detection(x1=0.0, y1=0.0, x2=64.0, y2=64.0)
+        tracker = KalmanBoxTracker(det)
+        result = tracker.predict()
+        assert_valid_detections(result)
 
 class TestStateAccessors:
     ...
