@@ -343,7 +343,33 @@ class TestCovarianceProperties:
             assert_symmetric(tracker.covariance)
 
 class TestGetStates:
-    ...
+    
+    def test_get_state_returns_detection(self):
+        assert isinstance(make_tracker().get_state(), Detection)
+    
+    def test_get_state_doesnot_advance_state(self):
+        tracker = make_tracker()
+        x_before = tracker.state_vector.copy()
+        tracker.get_state()
+        np.testing.assert_array_equal(tracker.state_vector, x_before)
+    
+    def test_get_state_doesnot_change_covariance(self):
+        tracker = make_tracker()
+        p_before = tracker.covariance.copy()
+        tracker.get_state()
+        np.testing.assert_array_equal(tracker.covariance, p_before)
+    
+    def test_get_state_consistent_with_predict(self):
+        """
+        After predict(), get_state should return same box as predict()
+        """
+        tracker = make_tracker()
+        predicted = tracker.predict()
+        state = tracker.get_state()
+        assert pytest.approx(predicted.x1, abs=ATOL) == state.x1
+        assert pytest.approx(predicted.y1, abs=ATOL) == state.y1
+        assert pytest.approx(predicted.x2, abs=ATOL) == state.x2
+        assert pytest.approx(predicted.y2, abs=ATOL) == state.y2
 
 class TestDtParameter:
     ...
