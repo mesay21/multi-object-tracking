@@ -266,7 +266,7 @@ class KalmanBoxTracker:
         return self._P.copy()
     
     def __repr__(self) -> str:
-        cx, cy, s, r = self._x
+        cx, cy, s, r = self._x[:4, 0]
         return (
             f"KalmanBoxTracker("
             f"cx={cx:.1f}, cy={cy:.1f}, "
