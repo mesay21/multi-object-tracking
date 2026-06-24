@@ -476,4 +476,29 @@ class TestEdgeCases:
         assert_valid_detections(result)
 
 class TestStateAccessors:
-    ...
+    
+    def test_state_vector_is_copy(self):
+        """
+        Mutating the returned array should not affect internal state.
+        """
+        tracker = make_tracker()
+        x = tracker.state_vector
+        x[0] = 99999.0
+        assert tracker.state_vector[0] != 99999.0
+    
+    def test_covariance_is_copy(self):
+        tracker = make_tracker()
+        P = tracker.covariance
+        P[0, 0] = 99999.0
+        assert tracker.covariance[0, 0] != 99999.0
+    
+    def test_state_vector_shape(self):
+        assert make_tracker().state_vector.shape == (7,)
+    
+    def test_covariance_shape(self):
+        assert make_tracker().covariance.shape == (7, 7)
+    
+    def test_repr(self):
+        r = repr(make_tracker())
+        assert "KalmanBoxTracker" in r
+    
