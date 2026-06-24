@@ -1,0 +1,311 @@
+"""
+Unit tests for trackers.sort.kalman.KalmanBoxTracker
+
+Tests covered:
+    - State seeded correctly
+    - predict() advances state and returns detection
+    - update() corrects state towards measurement
+    - combined predict/update cycles
+    - P stays symmetric positive semi-definite
+    - get_state() reads state without advancing
+    - prametric dt scales velocity correctly
+    - custom noise params affect K and convergence
+    - degenarate inputs don't crash
+    - state vector and covariance properties
+"""
+
+from __future__ import annotations
+from shutil import make_archive
+import traceback
+
+from _pytest.monkeypatch import K
+import numpy as np
+import pytest
+
+from core.detection import Detection
+from trackers.sort.kalman import KalmanBoxTracker
+
+ATOL = 1e-4 #Absolute tolerance for float comparisions
+
+def make_detection(
+    x1: float = 100.0,
+    y1: float = 200.0,
+    x2: float = 200.0,
+    y2: float = 400.0,
+    score: float = 0.0,
+    class_id: int = 1.0
+) -> Detection:
+    return Detection(x1=x1, y1=y1, x2=x2, y2=y2, score=score, class_id=class_id)
+
+def make_tracker(**kwargs) -> KalmanBoxTracker:
+    return KalmanBoxTracker(make_detection(), **kwargs)
+
+def assert_valid_detections(det: Detection) -> None:
+    """
+    Assert a Detection has finite values and positive dimensions
+    """
+
+    for val in [det.x1, det.y1, det.x2, det.y2]:
+        assert np.isfinite(val), f"Non-finite value in detection {det}"
+    
+    assert det.x2 > det.x1, f"x2 must be > x1: {det}"
+    assert det.y2 > det.y1, f"y2 must be > y1: {det}"
+
+def assert_symmetric(matrix: np.ndarray, atol: float = 1e-8) -> None:
+    np.testing.assert_allclose(matrix, matrix.T, atol==atol, err_msg="Matrix not symmetric")
+
+
+def assert_positive_semi_definite(matrix: np.ndarray) -> None:
+    eigen_values = np.linalg.eigvalsh(matrix)
+    assert np.all(eigen_values >= -1e-8), (
+        f"Matrix is not positive semi-definite, MIn eigen value: {eigen_values.min():.6e}"
+    )
+
+class TestInitialization:
+    def test_state_vector_shape(self):
+        tracker = make_tracker()
+        assert tracker.state_vector.shape == (7,)
+    
+    def test_state_seeded_from_detection(self):
+        dets = make_detection(x1=100, y1=200, x2=200, y2=400)
+        tracker = KalmanBoxTracker(dets)
+        cx, cy, s, r = dets.to_cxcysr()
+        x = tracker.state_vector
+
+        assert pytest.approx(x[0], abs=ATOL) == cx
+        assert pytest.approx(x[1], abs=ATOL) == cy
+        assert pytest.approx(x[2], abs=ATOL) == s
+        assert pytest.approx(x[3], abs=ATOL) == r
+    
+    def test_velocities_zero_at_birth(self):
+        tracker = make_tracker()
+        x = tracker.state_vector
+        np.testing.assert_allclose(x[4:], 0.0, atol=ATOL)
+    
+    def test_covariance_shape(self):
+        tracker = make_tracker()
+        assert tracker.covariance.shape == (7, 7)
+    
+    def test_covariance_diag_at_birth(self):
+        tracker = make_tracker()
+        P = tracker.covariance
+        off_diag = P - np.diag(np.diag(P))
+        np.testing.assert_allclose(off_diag, 0.0, atol=ATOL)
+    
+    def test_default_dt(self):
+        tracker = make_tracker()
+        assert tracker.dt == 1.0
+    
+    def test_custom_dt(self):
+        tracker = make_tracker(dt=0.5)
+        assert tracker.dt == 0.5
+    
+    def test_get_state_matches_initial_detection(self):
+        det = make_detection()
+        tracker = KalmanBoxTracker(det)
+        state = tracker.get_state()
+        assert pytest.approx(state.x1, abs=ATOL) == det.x1
+        assert pytest.approx(state.y1, abs=ATOL) == det.y1
+        assert pytest.approx(state.x2, abs=ATOL) == det.x2
+        assert pytest.approx(state.y2, abs=ATOL) == det.y2
+
+class TestPredict:
+
+    def test_returns_detection(self):
+        tracker = make_tracker()
+        result = tracker.predict()
+        assert isinstance(result, Detection)
+    
+    def test_predicted_detection_is_valid(self):
+        tracker = make_tracker()
+        result = tracker.predict()
+        assert_valid_detections(result)
+
+    def test_zero_velocity_predict_is_stationary(self):
+        """
+        Prediction should return the same box with zero velocity.
+        """
+        det = make_detection(x1=100, y1=200, x2=200, y2=400)
+        tracker = KalmanBoxTracker(det)
+        predicted = tracker.predict()
+        assert pytest.approx(predicted.x1, abs=ATOL) == det.x1
+        assert pytest.approx(predicted.y1, abs=ATOL) == det.y1
+        assert pytest.approx(predicted.x2, abs=ATOL) == det.x2
+        assert pytest.approx(predicted.y2, abs=ATOL) == det.y2
+    
+    def test_predict_advances_state_with_velocity(self):
+        """
+        Manually inject velocity and confirm prediction moves the box
+        """
+        tracker = make_tracker()
+        #Inject known velocity cx' = 10, cy' = 5
+        tracker._x[4, 0] = 10.0
+        tracker._x[5, 0] = 5.0
+        cx_before = tracker._x[0, 0]
+        cy_before = tracker._x[1, 0]
+        tracker.predict()
+        cx_after = tracker._x[0, 0]
+        cy_after = tracker._x[1, 0]
+
+        assert pytest.approx(cx_after, abs=ATOL) == cx_before + 10.0
+        assert pytest.approx(cy_after, abs=ATOL) == cy_before + 5.0
+    
+    def test_predict_inflates_covariance(self):
+        """
+        P should grow after predict (no measurement to constrain it)
+        """
+        tracker = make_tracker()
+        p_trace_before = np.trace(tracker.covariance)
+        tracker.predict()
+        p_trace_after = np.trace(tracker.covariance)
+
+        assert p_trace_after > p_trace_before
+    
+    def test_predict_convariance_remains_symmetric(self):
+        tracker = make_tracker()
+        for _ in range(10):
+            tracker.predict()
+        assert_symmetric(tracker.covariance)
+    
+    def test_covariance_remains_psd(self):
+        tracker = make_tracker()
+        for _ in range(10):
+            tracker.predict()
+        assert_positive_semi_definite(tracker.covariance)
+    
+    def test_multiple_predictions_without_update(self):
+        """
+        Tracker should not crach over many predict only steps.
+        """
+        tracker = make_tracker()
+        for _ in range(100):
+            result = tracker.predict()
+
+        assert_valid_detections(result)
+    
+    def test_predict_dt_scales_velocity(self):
+        """
+        With dt=2 position should advance twice
+        """
+        det = make_detection()
+        tracker_dt1 = KalmanBoxTracker(det, dt=1.0)
+        tracker_dt2 = KalmanBoxTracker(det, dt=2.0)
+
+        #Inject same velocity
+
+        for t in [tracker_dt1, tracker_dt2]:
+            t._x[4, 0] = 10.0 #cx
+            t._x[5, 0] = 5.0 #cy
+        
+        pred_dt1 = tracker_dt1.predict()
+        pred_dt2 = tracker_dt2.predict()
+
+        cx_dt1 = (pred_dt1.x1 + pred_dt1.x2) / 2
+        cx_dt2 = (pred_dt2.x1 + pred_dt2.x2) / 2
+
+        assert pytest.approx(cx_dt2 - cx_dt1, abs=ATOL) == 10.0 # 2*10 - 1*10
+
+class TestUpdate:
+
+    def test_update_pulls_state_toward_measurement(self):
+        """
+        After update, state should be closer to measurement than before. 
+        """
+
+        tracker = make_tracker()
+        #Shift measurement far from current state
+        shifted = make_detection(x1=300, y1=400, x2=400, y2=600)
+        cx_before = tracker._x[0, 0]
+        cx_measurement = (shifted.x1 + shifted.x2) / 2
+        tracker.update(shifted)
+        cx_after = tracker._x[0, 0]
+        assert abs(cx_after - cx_measurement) < abs(cx_before - cx_measurement)
+    
+    def test_update_reduces_covariance_trace(self):
+        """
+        P trace should shrink after an update step.
+        """
+        tracker = make_tracker()
+        tracker.predict()
+        p_trace_before = np.trace(tracker.covariance)
+        tracker.update(make_detection())
+        p_trace_after = np.trace(tracker.covariance)
+        assert p_trace_after < p_trace_before
+
+    def test_update_covariance_remains_symmetric(self):
+        tracker = make_tracker()
+
+        for _ in range(20):
+            tracker.predict()
+            tracker.update(make_detection())
+        assert_symmetric(tracker.covariance)
+    
+    def test_update_covariance_remains_psd(self):
+        tracker = make_tracker()
+        for _ in range(20):
+            tracker.predict()
+            tracker.update(make_detection())
+        assert_positive_semi_definite(tracker.covariance)
+    
+    def test_repeated_same_measurement_converges(self):
+        """
+        Repeated updates to the same detection should converge state to it.
+        """
+        det = make_detection(x1=100, y1=200, x2=200, y2=400)
+        tracker = KalmanBoxTracker(det)
+        target = make_detection(x1=150, y1=250, x2=250, y2=450)
+        for _ in range(100):
+            tracker.predict()
+            tracker.update(target)
+        state = tracker.get_state()
+        assert pytest.approx(state.x1, abs=ATOL) == target.x1
+        assert pytest.approx(state.y1, abs=ATOL) == target.y1
+        assert pytest.approx(state.x2, abs=ATOL) == target.x2
+        assert pytest.approx(state.y2, abs=ATOL) == target.y2
+    
+class TestPredictUpdateCycle:
+    
+    def test_constant_velocity_tracking(self):
+        """
+        Tracker should follow a linearly moving box after warmup.
+        """
+
+        dx = 5.0 # pixels perframe
+        #Seed tracker at frame zero
+        det_0 = make_detection(x1=100, y1=200, x2=200, y2=400)
+        tracker = KalmanBoxTracker(det_0)
+        #Feed 30 frames of linearly moving box
+        for i in range(1, 31):
+            det_i = make_detection(
+                x1=det_0.x1 + dx * i,
+                y1=det_0.y1,
+                x2=det_0.x2 + dx * i,
+                y2=det_0.y2
+            )
+            tracker.predict()
+            tracker.update(det_i)
+        #After 30 updates the tracker should be close to the true position
+        state = tracker.get_state()
+        expected_x1 = det_0.x1 + dx * 30
+        assert pytest.approx(state.x1, abs=ATOL) == expected_x1
+    
+    def test_valid_state_across_long_sequence(self):
+        tracker = make_tracker()
+        for i in range(200):
+            det = make_detection(x1=100 + i, y1=200, x2=200 + i, y2=400)
+            tracker.predict()
+            tracker.update(det)
+        assert_valid_detections(tracker.get_state())
+    
+    def test_predict_only_then_update_recovers(self):
+        """
+        Test update recovers after several predict steps (i.e missing measurement)
+        """
+        tracker = make_tracker()
+        for _ in range(10):
+            tracker.predict()
+        
+        tracker.update(make_detection())
+        assert_valid_detections(tracker.get_state())
+
+
