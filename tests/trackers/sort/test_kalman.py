@@ -397,7 +397,36 @@ class TestDtParameter:
         assert pytest.approx(state_cx, abs=ATOL) == det_cx
 
 class TestNoiseTuning:
-    ...
+    
+    def test_high_r_scale(self):
+        """
+        With high measurement noise on scale, the Kalman Gain for scale should be lower
+        """
+        det = make_detection()
+        low_r = KalmanBoxTracker(det, r_scale_scale=1.0)
+        high_r = KalmanBoxTracker(det, r_scale_scale=1000.0)
+
+        #Compute Kalman gain
+        def kalman_gain(tracker):
+            P = tracker._P
+            H = tracker._H
+            R = tracker._R
+            S = H @ P @ H.T + R
+            K = np.linalg.solve(S.T, H @ P.T).T
+
+            return K
+        k_low = kalman_gain(low_r)
+        k_high = kalman_gain(high_r)
+
+        assert k_low[2, 2] > k_high[2, 2]
+    
+    def test_high_p_vel_scale(self):
+        """
+        High velocity scale increases inital velocity uncertainity. 
+        """
+        low_pv = KalmanBoxTracker(make_detection(), p_vel_scale=10.0)
+        high_pv = KalmanBoxTracker(make_detection(), p_vel_scale=1000.0)
+        assert high_pv.covariance[4, 4] > low_pv.covariance[4, 4]
 
 class TestEdgeCases:
     ...
