@@ -372,7 +372,29 @@ class TestGetStates:
         assert pytest.approx(predicted.y2, abs=ATOL) == state.y2
 
 class TestDtParameter:
-    ...
+    
+    def test_largest_dt_moves_prediction_further(self):
+        det = make_detection()
+        t1 = KalmanBoxTracker(det, dt=1.0)
+        t2 = KalmanBoxTracker(det, dt=3.0)
+        for t in [t1, t2]:
+            t._x[4, 0] = 10.0 # inject cx velocity
+        
+        p1 = t1.predict()
+        p2 = t1.predict()
+        cx1 = p1.x1 + p1.x2
+        cx2 = p2.x1 + p2.x2
+        assert cx2 > cx1
+    
+    def test_zero_dt_prediction_is_stationary(self):
+        det = make_detection()
+        tracker = KalmanBoxTracker(det, dt=0.0)
+        tracker._x[4, 0] = 100.0 #Large velocity should have no effect
+        predicted = tracker.predict()
+        state_cx = (predicted.x1 + predicted.x2) / 2
+        det_cx = (det.x1 + det.x2) / 2
+
+        assert pytest.approx(state_cx, abs=ATOL) == det_cx
 
 class TestNoiseTuning:
     ...
