@@ -1,3 +1,17 @@
+"""
+Frame iterator for Video file.
+Yields one Frame per iteration containing BGR image and a list of Detection
+objects. Detection come from a BaseDetector running on each frame.
+
+Usage:
+    iterator = FrameIterator(
+                source=<video file path>
+                detector=<BaseDetector>
+            )
+    for frame in iterator:
+        print(frame.index, len(frame.detections))
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict

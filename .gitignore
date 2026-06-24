@@ -1,5 +1,4 @@
 data/
 .python-version
-*/__pycache__
+**/__pycache__/
 multi_object_tracking.egg-info/
-tests/*/__pycache__/
