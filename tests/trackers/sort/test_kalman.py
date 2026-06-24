@@ -308,4 +308,51 @@ class TestPredictUpdateCycle:
         tracker.update(make_detection())
         assert_valid_detections(tracker.get_state())
 
+class TestCovarianceProperties:
+    
+    def test_initial_covariance_is_symmetric(self):
+        assert_symmetric(make_tracker().covariance)
+    
+    def test_initial_covariance_is_psd(self):
+        assert_positive_semi_definite(make_tracker().covariance)
+    
+    def test_covariance_stays_psd(self):
+        """
+        Test covariance stays PSD after predict/update cycles.
+        """
+        tracker = make_tracker()
+        for i in range(50):
+            tracker.predict()
+            #Simulate missing measurement
+            if i%5 != 0:
+                det = make_detection(x1=100 + i, y1=200, x2=200 + i, y2=400)
+                tracker.update(det)
+            assert_positive_semi_definite(tracker.covariance)
+    
+    def test_covariance_stays_symmetric(self):
+        """
+        Test covariance stays symmetric after predict/update cycles.
+        """
+        tracker = make_tracker()
+        for i in range(50):
+            tracker.predict()
+            #Simulate missing measurement
+            if i%5 != 0:
+                det = make_detection(x1=100 + i, y1=200, x2=200 + i, y2=400)
+                tracker.update(det)
+            assert_symmetric(tracker.covariance)
 
+class TestGetStates:
+    ...
+
+class TestDtParameter:
+    ...
+
+class TestNoiseTuning:
+    ...
+
+class TestEdgeCases:
+    ...
+
+class TestStateAccessors:
+    ...
