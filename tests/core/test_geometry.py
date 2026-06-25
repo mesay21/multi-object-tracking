@@ -292,3 +292,32 @@ class TestNumericalStability:
         b = boxes([-5, -5, 5, 5])
         result = iou_batch(a, b)
         assert result[0, 0] > 0.0  
+
+class TestBroadcasting:
+    def test_large_batch(self):
+        rng = np.random.default_rng(seed=0)
+        #Generate valid boxes: x1 < x2, y1 < y2
+        raw_a = rng.uniform(0, 100, size=(200, 4))
+        raw_b = rng.uniform(0, 100, size=(50, 4))
+        a = np.column_stack(
+            [
+                np.minimum(raw_a[:, 0], raw_a[:, 2]),
+                np.minimum(raw_a[:, 1], raw_a[:, 3]),
+                np.maximum(raw_a[:, 0], raw_a[:, 2]),
+                np.maximum(raw_a[:, 1], raw_a[:, 3])
+            ]
+        )    
+        b = np.column_stack(
+            [
+                np.minimum(raw_b[:, 0], raw_b[:, 2]),
+                np.minimum(raw_b[:, 1], raw_b[:, 3]),
+                np.maximum(raw_b[:, 0], raw_b[:, 2]),
+                np.maximum(raw_b[:, 1], raw_b[:, 3])
+            ]
+        )
+        result = iou_batch(a, b)
+
+        assert result.shape == (200, 50) 
+        assert not np.any(np.isnan(result))
+        assert np.all(result >= 0.0)
+        assert np.all(result <= 1.0 + ATOL)         
