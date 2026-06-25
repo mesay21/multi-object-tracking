@@ -253,4 +253,42 @@ class TestBoundaryValues:
         )
 
         result = iou_batch(a, b)
-        assert not np.any(np.isinf(result))           
+        assert not np.any(np.isinf(result))  
+
+class TestNumericalStability:
+
+    def test_zero_area_box_returns_zero_iou(self):
+        a = boxes([10, 10, 10, 10])
+        b = boxes([5, 5, 15, 15])
+        c = boxes([10, 10, 10, 10])
+        result_ab = iou_batch(a, b)
+        result_bc = iou_batch(b, c)
+        assert pytest.approx(result_ab[0, 0], abs=ATOL) == 0.0
+        assert pytest.approx(result_bc[0, 0], abs=ATOL) == 0.0
+
+    def test_large_coordinate_overflow(self):
+        a = boxes([0, 0, 3840, 2160])
+        b = boxes([1920, 0, 3840, 2160])
+        result = iou_batch(a, b)
+        assert np.isfinite(result[0, 0])
+        assert result[0, 0] > 0
+
+    def test_float32_input_accepted(self):  
+        a = boxes([0, 0, 10, 10]).astype(np.float32)
+        b = boxes([5, 5, 15, 15]).astype(np.float32)
+        result = iou_batch(a, b)
+        assert np.isfinite(result[0, 0])
+        assert result[0, 0] > 0
+
+    def test_small_overlap_not_negative(self):
+        #1-pixel overlap
+        a = boxes([0, 0, 10, 10])
+        b = boxes([9, 9, 20, 20])
+        result = iou_batch(a, b)
+        assert result[0, 0] >= 0.0 
+
+    def test_negative_coordinates_handeled(self):
+        a = boxes([-10, -10, 10, 10])
+        b = boxes([-5, -5, 5, 5])
+        result = iou_batch(a, b)
+        assert result[0, 0] > 0.0  
