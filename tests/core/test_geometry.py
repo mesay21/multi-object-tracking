@@ -70,5 +70,40 @@ class TestOutputShape:
         result = iou_batch(a, b)
         assert np.issubdtype(result.dtype, np.floating)      
 
+class TestEmptyInputs:
+
+    def test_empty_a_returns_zero_matrix(self):
+        a = np.zeros((0, 4), dtype=np.float64)
+        b = boxes(
+            [0, 0, 10, 10], 
+            [20, 20, 30, 30],
+            [40, 40, 50, 50]
+        )
+        result = iou_batch(a, b) 
+        assert result.shape == (0, 3)
+    
+    def test_empty_b_returns_zero_matrix(self):
+        a = boxes(
+            [0, 0, 10, 10], 
+            [20, 20, 30, 30],
+            [40, 40, 50, 50]
+        )
+        b = np.zeros((0, 4), dtype=np.float64)
+        result = iou_batch(a, b) 
+        assert result.shape == (3, 0)
+
+    def test_both_empty_returns_zero_matrix(self):
+        a = np.zeros((0, 4), dtype=np.float64)
+        b = np.zeros((0, 4), dtype=np.float64)
+
+        result = iou_batch(a, b)
+        assert result.shape == (0, 0)
+
+    def test_empty_result_contains_no_nan(self):
+        a = np.zeros((0, 4), dtype=np.float64)
+        b = boxes([0, 0, 10, 10])
+        result = iou_batch(a, b)
+        assert not np.any(np.isnan(result))    
+
                 
         
