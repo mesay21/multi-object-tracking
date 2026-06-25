@@ -105,5 +105,81 @@ class TestEmptyInputs:
         result = iou_batch(a, b)
         assert not np.any(np.isnan(result))    
 
-                
+class TestKnownValues:
+
+    def test_identical_box_iou_is_one(self):
+        a = boxes([10, 10, 50, 80])
+        result = iou_batch(a, a)
+        assert pytest.approx(result[0, 0], abs=ATOL) == 1.0
+    
+    def test_non_overlapping_box_iou_is_zero(self):
+        a = boxes([10, 10, 50, 80])
+        b = boxes([60, 90, 100, 120])    
+
+        result = iou_batch(a, b)
+        assert pytest.approx(result[0, 0], abs=ATOL) == 0.0
+
+    def test_half_overlap_horizontal(self):
+        #a = [0, 0, 10, 10], area = 100
+        #b = [5, 0, 15, 10], area = 100
+        # intersection: [5, 0, 10, 10] = 50
+        # union = 100 + 100 - 50 = 150
+        # IoU = 50/150 = 1/3
+        a = boxes([0, 0, 10, 10])
+        b = boxes([5, 0, 15, 10])    
+        result = iou_batch(a, b)
+        assert  pytest.approx(result[0, 0], abs=ATOL) == 1.0/3.0
+    
+    def test_quarter_overlap_horizontal(self):
+        #a = [0, 0, 10, 10], area = 100
+        #b = [5, 5, 15, 15], area = 100
+        # intersection: [5, 5, 10, 10] = 25
+        # union = 100 + 100 - 25 = 175
+        # IoU = 25/175 = 1/7
+        a = boxes([0, 0, 10, 10])
+        b = boxes([5, 5, 15, 15])    
+        result = iou_batch(a, b)
+        assert  pytest.approx(result[0, 0], abs=ATOL) == 25.0/175.0
+    
+    def test_contained_box(self):
+        """
+        b is fully contained in a
+        a: [0, 0, 100, 100], area = 10000
+        b: [25, 25, 75, 75], area = 2500
+        intersection: [25, 25, 75, 75], area = 2500
+        union: 10000 + 2500 - 2500 = 10000
+        IoU: 2500/10000 = 0.25
+        """
+        a = boxes([0, 0, 100, 100])
+        b = boxes([25, 25, 75, 75])    
+        result = iou_batch(a, b)
+        assert  pytest.approx(result[0, 0], abs=ATOL) == 0.25   
+
+    def test_with_known_values(self):
+        """
+        a[0] == b[0], IoU = 1
+        a[0] == b[1], IoU = 0
+        a[1] == b[0], IoU = 0
+        a[1] == b[1], IoU = 1
+        """ 
+        a = boxes(
+            [0, 0, 10, 10],
+            [20, 20, 30, 30]
+        )
+        b = boxes(
+            [0, 0, 10, 10],
+            [20, 20, 30, 30]
+        )    
+        result = iou_batch(a, b)
+        expected = np.array([[1.0, 0.0],[0.0, 1.0]])
+        np.testing.assert_allclose(result, expected, atol=ATOL)
+    
+    def test_touching_edge_iou_is_zero(self): 
+        """
+        Boxes share only an edge - intersection is zero
+        """      
+        a = boxes([0, 0, 10, 10])
+        b = boxes([10, 0, 20, 10])
+        result = iou_batch(a, b)
+        assert pytest.approx(result[0, 0], abs=ATOL) == 0.0
         
