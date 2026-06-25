@@ -182,4 +182,75 @@ class TestKnownValues:
         b = boxes([10, 0, 20, 10])
         result = iou_batch(a, b)
         assert pytest.approx(result[0, 0], abs=ATOL) == 0.0
-        
+
+class TestSymmetry:
+
+    def test_iou_is_symmetric(self):
+        a = boxes(
+            [0, 0, 10, 10],
+            [5, 5, 20, 20]
+        ) 
+        b = boxes(
+            [3, 3, 15, 15],
+            [0, 0, 10, 10],
+            [25, 25, 40, 40]
+        )
+        result_ab = iou_batch(a, b)
+        result_ba = iou_batch(b, a)
+
+        np.testing.assert_allclose(result_ab, result_ba.T, atol=ATOL)  
+
+class TestBoundaryValues:
+
+    def test_all_values_in_unit_interval(self):
+        rng = np.random.default_rng(seed=0)
+        #Generate valid boxes: x1 < x2, y1 < y2
+        raw = rng.uniform(0, 100, size=(20, 4))
+        a = np.column_stack(
+            [
+                np.minimum(raw[:10, 0], raw[:10, 2]),
+                np.minimum(raw[:10, 1], raw[:10, 3]),
+                np.maximum(raw[:10, 0], raw[:10, 2]),
+                np.maximum(raw[:10, 1], raw[:10, 3])
+            ]
+        )    
+        b = np.column_stack(
+            [
+                np.minimum(raw[10:, 0], raw[10:, 2]),
+                np.minimum(raw[10:, 1], raw[10:, 3]),
+                np.maximum(raw[10:, 0], raw[10:, 2]),
+                np.maximum(raw[10:, 1], raw[10:, 3])
+            ]
+        )
+
+        result = iou_batch(a, b)  
+        assert np.all(result >= 0.0), "IoU must be >= 0"
+        assert np.all(result <= 1.0), "IoU must be <= 1"
+
+    def test_no_nan_values(self):
+        a = boxes(
+            [0, 0, 10, 10],
+            [5, 5, 20, 20]
+        ) 
+        b = boxes(
+            [3, 3, 15, 15],
+            [0, 0, 10, 10],
+            [25, 25, 40, 40]
+        )
+
+        result = iou_batch(a, b)
+        assert not np.any(np.isnan(result))       
+    
+    def test_no_inf_values(self):
+        a = boxes(
+            [0, 0, 10, 10],
+            [5, 5, 20, 20]
+        ) 
+        b = boxes(
+            [3, 3, 15, 15],
+            [0, 0, 10, 10],
+            [25, 25, 40, 40]
+        )
+
+        result = iou_batch(a, b)
+        assert not np.any(np.isinf(result))           
