@@ -68,3 +68,40 @@ class TestEmptyInput:
         assert not matched
         assert not unmatched_det
         assert not unmatched_tracks
+
+class TestReturnTypes:
+
+    def test_returns_three_values(self):
+        result = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(20, 20, 30, 30)]
+        )
+
+        assert len(result) == 3
+    
+    def test_matched_is_list_of_tuples(self):
+        matched, _, _ = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(0, 0, 30, 30)]
+        )
+
+        assert isinstance(matched, list)
+        if matched:
+            assert isinstance(matched[0], tuple)
+            assert len(matched[0]) == 2
+    
+    def test_unmatched_det_is_list_of_ints(self):
+        _, unmatched_dets, _ = associate(
+            [],
+            [make_detection(0, 0, 10, 10)],
+        )
+        assert isinstance(unmatched_dets, list)
+        assert all(isinstance(i, int) for i in unmatched_dets)
+
+    def test_unmatched_trackers_is_list_of_ints(self):
+        _, _, unmatched_tracks = associate(
+            [make_detection(0, 0, 10, 10)],
+            []
+        )
+        assert isinstance(unmatched_tracks, list)
+        assert all(isinstance(i, int) for i in unmatched_tracks)
