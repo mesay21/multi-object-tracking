@@ -330,10 +330,10 @@ class TestReturnOrder:
         matched, unmatched_dets, unmatched_tracks = associate(tracks, dets)
 
         #track[0] is assigned to det[0]
-        assert (0, 0) in matched[0]
+        assert (0, 0) in matched
         #det[1] is unmatched
 
-        assert 1 in unmatched_dets[1]
+        assert 1 in unmatched_dets
         #tracks[1] is unmatched
 
-        assert 1 in unmatched_tracks[2]
+        assert 1 in unmatched_tracks
