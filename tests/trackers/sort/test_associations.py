@@ -327,13 +327,13 @@ class TestReturnOrder:
             make_detection(0, 0, 10, 10),
             make_detection(30, 30, 50, 50)
         ]
-        result = associate(tracks, dets)
+        matched, unmatched_dets, unmatched_tracks = associate(tracks, dets)
 
         #track[0] is assigned to det[0]
-        assert (0, 0) in result[0]
+        assert (0, 0) in matched[0]
         #det[1] is unmatched
 
-        assert 1 in result[1]
+        assert 1 in unmatched_dets[1]
         #tracks[1] is unmatched
 
-        assert 1 in result[2]
+        assert 1 in unmatched_tracks[2]
