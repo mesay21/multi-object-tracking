@@ -132,3 +132,59 @@ class TestPerfectMatches:
         for track_idx, det_idx in matched:
             assert 0 <= track_idx < len(tracks)
             assert 0 <= det_idx < len(tracks)
+
+class TestIoUThreshold:
+
+    def test_match_rejected_below_threshold(self):
+        """
+        Matched detection below IoU threshold should be rejected.
+        """
+        matched, unmatched_dets, unmatched_tracks = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(9, 0, 19, 10)],
+            iou_threshold=0.3
+        )
+
+        assert not matched
+        assert unmatched_dets == [0]
+        assert unmatched_tracks == [0]
+
+    def test_match_accepted_above_threshold(self):
+        """
+        Matched detection above IoU threshold should be accepted.
+        """
+        matched, _, _ = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(0, 0, 10, 10)],
+            iou_threshold=0.3
+        )
+
+        assert len(matched) == 1
+
+    def test_match_accepted_at_threshold(self):
+        """
+        Matched detection at IoU threshold should be accepted.
+        """
+        matched, _, _ = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(0, 0, 10, 5)],
+            iou_threshold=0.5
+        )
+
+        assert len(matched) == 1  
+
+    def test_non_overlapping_all_unmatched(self):
+        """
+        Matched detection above IoU threshold should be accepted.
+        """
+        matched, unmatched_dets, unmatched_tracks = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(20, 20, 30, 30)],
+            iou_threshold=0.3
+        )
+
+        assert not matched 
+        assert set(unmatched_dets) == {0}
+        assert set(unmatched_tracks) == {0}
+     
+    
