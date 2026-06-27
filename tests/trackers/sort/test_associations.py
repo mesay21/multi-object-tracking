@@ -270,3 +270,41 @@ class TestUnmatchedIndices:
         matched_track_indices = {track_idx for track_idx, _ in matched}
 
         assert matched_track_indices | set(unmatched_tracks) == all_track_indices
+
+class TestAsymmetricCounts:
+
+    def test_more_detections_than_trackers(self):
+        tracks = [make_detection(0, 0, 10, 10)]
+        dets = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30),
+            make_detection(40, 40, 60, 60)
+        ]
+        matched, unmatched_dets, unmatched_tracks = associate(tracks, dets)
+        assert len(matched) == 1
+        assert len(unmatched_dets) == 2
+        assert not unmatched_tracks
+
+    def test_more_tracks_than_detections(self):
+        dets = [make_detection(0, 0, 10, 10)]
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30),
+            make_detection(40, 40, 60, 60)
+        ]
+        matched, unmatched_dets, unmatched_tracks = associate(tracks, dets)
+        assert len(matched) == 1
+        assert not unmatched_dets
+        assert len(unmatched_tracks) == 2
+    
+    def test_single_track_multiple_detections(self):
+        track = [make_detection(0, 0, 10, 10)]
+        dets = [
+            make_detection(0, 0, 10, 10), #IoU = 1
+            make_detection(5, 5, 15, 15), #IoU = 0.14 
+        ]
+
+        matched, _, _ = associate(track, dets)
+
+        assert len(matched) == 1
+        assert matched[0] == (0, 0) #Must be matched to index 0
