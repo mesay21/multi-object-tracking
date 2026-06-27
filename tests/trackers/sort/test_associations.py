@@ -105,3 +105,30 @@ class TestReturnTypes:
         )
         assert isinstance(unmatched_tracks, list)
         assert all(isinstance(i, int) for i in unmatched_tracks)
+
+class TestPerfectMatches:
+    def test_identical_pairs_matched_correctly(self):
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+        ]
+
+        matched, unmatched_dets, unmatched_tracks = associate(tracks, tracks)
+
+        assert len(matched) == len(tracks)
+        assert (0, 0) in matched
+        assert (1, 1) in matched
+
+        assert not unmatched_dets
+        assert not unmatched_tracks
+    
+    def test_matched_indices_are_valid(self):
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+        ]
+        matched, _, _ = associate(tracks, tracks)
+
+        for track_idx, det_idx in matched:
+            assert 0 <= track_idx < len(tracks)
+            assert 0 <= det_idx < len(tracks)
