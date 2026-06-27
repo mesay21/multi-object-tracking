@@ -187,4 +187,86 @@ class TestIoUThreshold:
         assert set(unmatched_dets) == {0}
         assert set(unmatched_tracks) == {0}
      
+class TestUnmatchedIndices:
+
+    def test_unmatched_det_index_is_correct(self):
+        """
+        track[0] matches det[0], det[1] is far away (i.e unmatched)
+        """   
+        _, unmatched_dets, unmatched_tracks = associate(
+            [make_detection(0, 0, 10, 10)],
+            [make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)]
+        )
+        assert unmatched_dets == [1]
+        assert unmatched_tracks == []
+
+    def test_unmatched_track_index_is_correct(self):
+        """
+        track[0] matches det[0], det[1] is far away (i.e unmatched)
+        """   
+        _, unmatched_dets, unmatched_tracks = associate(
+            [make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)],
+            [make_detection(0, 0, 10, 10)]
+        )
+        assert unmatched_dets == []
+        assert unmatched_tracks == [1]    
     
+    def test_no_index_appears_in_both_matched_and_unmatched_detections(self):
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+        ]
+        dets = [
+            make_detection(0, 0, 10, 10),
+            make_detection(40, 40, 100, 100)
+        ]
+
+        matched, unmatched_dets, _ = associate(tracks, dets)
+
+        matched_det_indices = {det_idx for _, det_idx in matched}
+
+        assert matched_det_indices.isdisjoint(set(unmatched_dets))
+
+    def test_no_index_appears_in_both_matched_and_unmatched_tracks(self):
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(40, 40, 100, 100)
+
+        ]
+        dets = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+        ]
+
+        matched, _, unmatched_tracks = associate(tracks, dets)
+
+        matched_track_indices = {track_idx for track_idx, _ in matched}
+
+        assert matched_track_indices.isdisjoint(set(unmatched_tracks))
+    
+    def test_all_indices_accounted_for(self):
+        """
+        Every detection box should appear exactly in one of matched or unmatched
+        """
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+
+        ]
+        dets = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+        ]       
+        matched, unmatched_dets, unmatched_tracks = associate(tracks, dets)
+
+        all_det_indices = set(range(len(dets)))
+        matched_det_indices = {det_idx for _, det_idx in matched}
+
+        assert matched_det_indices | set(unmatched_dets) == all_det_indices
+
+        all_track_indices = set(range(len(tracks)))
+        matched_track_indices = {track_idx for track_idx, _ in matched}
+
+        assert matched_track_indices | set(unmatched_tracks) == all_track_indices
