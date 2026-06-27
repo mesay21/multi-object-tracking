@@ -13,6 +13,7 @@ Tests covered:
 """
 
 from __future__ import annotations
+from unittest import result
 
 import numpy as np
 import pytest
@@ -308,3 +309,31 @@ class TestAsymmetricCounts:
 
         assert len(matched) == 1
         assert matched[0] == (0, 0) #Must be matched to index 0
+
+class TestReturnOrder:
+
+    def test_return_order_is_correct(self):
+        """
+        Explicity verify return order is matched, unmatched_dets, and unmatched_tracks.
+        A swap would cause tracker to use wrond indices
+        """
+
+        tracks = [
+            make_detection(0, 0, 10, 10),
+            make_detection(20, 20, 30, 30)
+        ]
+
+        dets = [
+            make_detection(0, 0, 10, 10),
+            make_detection(30, 30, 50, 50)
+        ]
+        result = associate(tracks, dets)
+
+        #track[0] is assigned to det[0]
+        assert (0, 0) in result[0]
+        #det[1] is unmatched
+
+        assert 1 in result[1]
+        #tracks[1] is unmatched
+
+        assert 1 in result[2]
