@@ -196,3 +196,24 @@ class TestTrackIDAssignment:
         assert t._next_id == 1
         t.update([far_detection()])
         assert t._next_id == 2
+
+class TestMatchedTrackUpdate:
+
+    def test_matched_tracks_hits_increaments(self):
+        t = SORTTracker(max_age=5, min_hits=1)
+        det = make_detection()
+        t.update([det])
+        assert t.tracks[0].hits == 1
+        t.update([det])
+        assert t.tracks[0].hits == 2
+    
+    def test_matched_track_time_since_last_update_resets(self):
+        t = SORTTracker(max_age=5, min_hits=1)
+        det = make_detection()
+        t.update([det])
+        t.update([]) #missed one frame
+        assert t.tracks[0].time_since_last_update == 1
+        t.update([det]) #time_since_last_update resets to zero
+        assert t.tracks[0].time_since_last_update == 0
+    
+
