@@ -159,3 +159,40 @@ class TestTrackDeletion:
         assert len(t.tracks) == 1
         assert t.tracks[0].time_since_last_update == 0
         
+class TestTrackIDAssignment:
+
+    def test_first_track_id_is_zero(self):
+        t = SORTTracker()
+        t.update([make_detection()])
+        assert t.tracks[0].track_id == 0
+
+    def test_ids_are_unique_across_tracks(self):
+        t = SORTTracker()
+        t.update([make_detection(), far_detection()])
+        ids = [track.track_id for track in t.tracks]
+        assert len(ids) == len(set(ids))
+
+    def test_ids_are_monotonically_increasing(self):
+        t = SORTTracker()
+        t.update([make_detection(), far_detection()])
+        ids = [track.track_id for track in t.tracks]
+
+        assert ids == sorted(ids)
+
+    def test_new_track_after_deletion_gets_new_id(self):
+        t = SORTTracker(max_age=1, min_hits=1)
+        t.update([make_detection()])
+        first_id = t.tracks[0].track_id
+        t.update([]) #Miss one
+        t.update([]) #Deleted
+        t.update([make_detection()]) #New track born
+        second_id = t.tracks[0].track_id
+
+        assert second_id > first_id
+    
+    def test_next_id_increaments_at_birth(self):
+        t = SORTTracker()
+        t.update([make_detection()])
+        assert t._next_id == 1
+        t.update([far_detection()])
+        assert t._next_id == 2
