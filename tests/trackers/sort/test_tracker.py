@@ -258,4 +258,27 @@ class TestFrameCount:
         t.update([])
         assert t.frame_count == 1
 
+class TestMultiObjectTracking:
 
+    def test_two_objects_tracked_independently(self):
+        t = SORTTracker(min_hits=1, max_age=5)
+        result = t.update([make_detection(), far_detection()])
+        assert len(result) == 2
+        ids = {track_id for _, track_id in result}
+        assert len(ids) == 2
+    
+    def test_one_object_leaves_other_persists(self):
+        t = SORTTracker(min_hits=1, max_age=5)
+        t.update([make_detection(), far_detection()])
+        result = t.update([make_detection()]) #Only one track remains
+        assert len(result) == 1
+    
+    def test_tracks_maintain_consistent_ids_across_frames(self):
+        t = SORTTracker(min_hits=2, max_age=5)
+        feed_n_frames(t, make_detection(), 1)
+        t.update([make_detection(), far_detection()])
+        result1 = t.update([make_detection(), far_detection()])
+        result2 = t.update([make_detection(), far_detection()])
+        ids1 = {track_id for _, track_id in result1}
+        ids2 = {track_id for _, track_id in result2}
+        assert ids1 == ids2
