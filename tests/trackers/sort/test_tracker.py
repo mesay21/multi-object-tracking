@@ -101,3 +101,24 @@ class TestTrackBirth:
         t = SORTTracker()
         t.update([])
         assert len(t.tracks) == 0
+
+class TestTrackConfirmation:
+
+    def test_track_not_comfirmed_before_min_hits(self):
+        t = SORTTracker(min_hits=3, max_age=5)
+        det = make_detection()
+        for _ in range(2):
+            result = t.update([det])
+            assert result == []
+    
+    def test_track_confirmed_at_min_hits(self):
+        t = SORTTracker(min_hits=3, max_age=5)
+        det = make_detection()
+        results = feed_n_frames(t, det, n=3)
+        assert len(results[-1]) == 1
+    
+    def test_track_confirmed_after_min_hits(self):
+        t = SORTTracker(min_hits=3, max_age=5)
+        det = make_detection()
+        results = feed_n_frames(t, det, n=5)
+        assert len(results[-1]) == 1        
