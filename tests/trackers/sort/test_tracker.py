@@ -16,6 +16,7 @@ Tests covered:
 """
 
 from __future__ import annotations
+from unittest import result
 
 import pytest
 
@@ -216,4 +217,29 @@ class TestMatchedTrackUpdate:
         t.update([det]) #time_since_last_update resets to zero
         assert t.tracks[0].time_since_last_update == 0
     
+class TestReturnFormat:
 
+    def test_returns_list(self):
+        t = SORTTracker(min_hits=1)
+        result = t.update([make_detection()])
+        assert isinstance(result, list)
+    
+    def test_each_element_is_tuple_of_two(self):
+        t = SORTTracker(min_hits=1)
+        result = t.update([make_detection()])
+        assert len(result) == 1
+        assert len(result[0]) == 2
+        assert isinstance(result[0], tuple)
+    
+    def test_first_element_is_detection(self):
+        t = SORTTracker(min_hits=1)
+        result = t.update([make_detection()])
+        box, _ = result[0]
+        assert isinstance(box, Detection)
+
+    def test_second_element_is_int(self):
+        t = SORTTracker(min_hits=1)
+        result = t.update([make_detection()])
+        _, track_id = result[0]
+        assert isinstance(track_id, int)
+    
