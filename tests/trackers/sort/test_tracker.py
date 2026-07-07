@@ -76,3 +76,28 @@ class TestInitialization:
 
     def test_next_id_zero_at_start(self):
         assert SORTTracker()._next_id == 0
+
+class TestTrackBirth:
+
+    def test_new_detections_creates_track(self):
+        t = SORTTracker()
+        t.update([make_detection(), far_detection()])
+        assert len(t.tracks) == 2
+    
+    def test_new_track_hit_is_one(self):
+        t = SORTTracker()
+        t.update([make_detection()])
+        assert t.tracks[0].hits == 1
+    
+    def test_new_track_time_since_last_update(self):
+        """
+        For new track time since last update should be zero
+        """
+        t = SORTTracker()
+        t.update([make_detection()])
+        assert t.tracks[0].time_since_last_update == 0
+    
+    def test_empty_detection_creates_no_tracks(self):
+        t = SORTTracker()
+        t.update([])
+        assert len(t.tracks) == 0
