@@ -122,3 +122,40 @@ class TestTrackConfirmation:
         det = make_detection()
         results = feed_n_frames(t, det, n=5)
         assert len(results[-1]) == 1        
+
+class TestTrackDeletion:
+
+    def test_track_survives_within_max_age(self):
+        t = SORTTracker(min_hits=1, max_age=3)
+        t.update([make_detection()])
+        #Miss two frames
+        t.update([])
+        t.update([])
+        assert len(t.tracks) == 1
+    
+    def test_track_deleted_at_max_age_plus_one(self):
+        t = SORTTracker(min_hits=1, max_age=1)
+        t.update([make_detection()])
+        #Miss a frame
+        t.update([]) #time since last update = 1
+        assert len(t.tracks) == 1
+        t.update([]) #time since last update = 2 > max_age
+        assert len(t.tracks) == 0
+    
+    def test_track_deleted_after_max_age(self):
+        t = SORTTracker(min_hits=1, max_age=3)
+        t.update([make_detection()])
+        #Miss 3 frames
+        for _ in range(4):
+            t.update([])
+        assert len(t.tracks) == 0
+    
+    def test_redetected_track_not_deleted(self):
+        t = SORTTracker(min_hits=1, max_age=1)
+        det = make_detection()
+        t.update([det])
+        t.update([]) #miss one frame
+        t.update([det]) #Redetected - should reset time_since_last_update to zero
+        assert len(t.tracks) == 1
+        assert t.tracks[0].time_since_last_update == 0
+        
