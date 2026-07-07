@@ -242,4 +242,20 @@ class TestReturnFormat:
         result = t.update([make_detection()])
         _, track_id = result[0]
         assert isinstance(track_id, int)
+
+class TestFrameCount:
+
+    def test_frame_count_increaments_on_update(self):
+        t = SORTTracker()
+        assert t.frame_count == 0
+        t.update([make_detection()])
+        assert t.frame_count == 1
+        t.update([])
+        assert t.frame_count == 2
     
+    def test_frame_count_increaments_on_empty_detections(self):
+        t = SORTTracker()
+        t.update([])
+        assert t.frame_count == 1
+
+
