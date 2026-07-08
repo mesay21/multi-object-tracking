@@ -65,3 +65,34 @@ class TestContextManager:
         output = tmp_path / "tracks.txt"
         with MOTWriter(output) as writer:
             assert isinstance(writer, MOTWriter)
+
+class TestWrite:
+
+    def test_tracks_are_written_correctly(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0), (make_det(), 1)])
+        lines = read_lines(output)
+        assert len(lines) == 2
+
+    def test_empty_tracks_writes_no_rows(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [])
+        assert output.read_text() == ""
+
+    def test_frame_index_written_correctly(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(42, [(make_det(), 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[0]) == 42
+
+    def test_track_id_index_written_correctly(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(42, [(make_det(), 7)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[1]) == 7        
