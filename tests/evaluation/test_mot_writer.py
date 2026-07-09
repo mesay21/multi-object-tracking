@@ -95,4 +95,79 @@ class TestWrite:
             writer.write(42, [(make_det(), 7)])
 
         row = parse_row(read_lines(output)[0])
-        assert int(row[1]) == 7        
+        assert int(row[1]) == 7    
+
+class TestFormatRow:
+
+    def test_row_has_10_cols(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert len(row) == 10  
+
+    def test_bb_left_is_x1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=100.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[2]) == pytest.approx(100.0, abs=0.01)
+
+    def test_bb_top_is_y1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=90.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[3]) == pytest.approx(90.0, abs=0.01)
+
+    def test_bb_width_is_x2_minus_x1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=90.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[4]) == pytest.approx(100, abs=0.01) #200.0 - 100.0
+
+    def test_bb_height_is_y2_minus_y1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=90.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[5]) == pytest.approx(10.0, abs=0.01) #100.0 - 90.0
+
+    def test_conf_is_detection_score(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(score=0.85)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[6]) == pytest.approx(0.85, abs=0.001)
+
+    def test_last_three_cols_are_minus_one(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[7]) == -1.0
+        assert float(row[8]) == -1.0
+        assert float(row[9]) == -1.0
+
+    def test_row_ends_with_newline(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+        
+        row = output.read_text(encoding="utf-8")
+        assert row.endswith("\n")
+    
+        
