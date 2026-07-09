@@ -169,5 +169,47 @@ class TestFormatRow:
         
         row = output.read_text(encoding="utf-8")
         assert row.endswith("\n")
+
+class TestMultipleFrames:
+
+    def test_multiple_frames_written_inorder(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+            writer.write(2, [(make_det(), 0)])
+            writer.write(3, [(make_det(), 0)])
+
+        lines = read_lines(output)
+        assert len(lines) == 3
+        frame_ids = [int(parse_row(l)[0]) for l in lines]
+        assert frame_ids == [1, 2, 3]
+    def test_multiple_tracks_per_frame(self, tmp_path):    
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0), (make_det(), 1)])
+            writer.write(2, [(make_det(), 0), (make_det(), 1)])
+            writer.write(3, [(make_det(), 0), (make_det(), 1)])
+
+        lines = read_lines(output)
+        assert len(lines) == 6 # 2 detections per frame x 3 frames
     
-        
+    def test_track_ids_preserved_per_frame(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 5)])
+            writer.write(2, [(make_det(), 5)])
+            writer.write(3, [(make_det(), 5)])
+        lines = read_lines(output)
+        track_ids = [int(parse_row(l)[1]) for l in lines]
+        assert track_ids == [5, 5, 5]
+    
+    def test_empty_frame_skipped(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 5)])
+            writer.write(2, [])
+            writer.write(3, [(make_det(), 5)])
+        lines = read_lines(output)   
+        assert len(lines) == 2
+        frame_ids = [int(parse_row(l)[0]) for l in lines] 
+        assert frame_ids == [1, 3]    
