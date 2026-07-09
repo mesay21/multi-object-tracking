@@ -212,4 +212,55 @@ class TestMultipleFrames:
         lines = read_lines(output)   
         assert len(lines) == 2
         frame_ids = [int(parse_row(l)[0]) for l in lines] 
-        assert frame_ids == [1, 3]    
+        assert frame_ids == [1, 3]  
+
+class TestEdgeCases:
+
+    def test_large_coordinates(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=0, y1=0, x2=3840, y2=2160)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert float(row[4]) == pytest.approx(3840.0, abs=0.01)
+        assert float(row[5]) == pytest.approx(2160.0, abs=0.01)  
+
+    def test_fractional_coordinates(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=10.5, y1=20.3, x2=50.7, y2=100.9)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert float(row[2]) == pytest.approx(10.5, abs=0.01)
+        assert float(row[3]) == pytest.approx(20.3, abs=0.01)  
+
+    def test_large_frame_index(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det()
+        with MOTWriter(output) as writer:
+            writer.write(100000, [(det, 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[0]) == 100000
+
+    def test_large_track_ids(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det()
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 9999)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[1]) == 9999
+    
+    def test_file_created_in_nested_directory(self, tmp_path: Path):
+        nested = tmp_path / "tracker" / "sort" / "data"
+        nested.mkdir(parents=True)
+        output = nested / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+
+        assert output.exists()
+        assert len(read_lines(output)) == 1      
+    
