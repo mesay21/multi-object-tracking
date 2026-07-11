@@ -33,7 +33,7 @@ def draw_frame(
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.6
         font_thickness = 1
-        (text_w, text_h), baseline = cv2.getTextSize(
+        (text_w, text_h), _ = cv2.getTextSize(
             text=label, 
             fontFace=font, 
             fontScale=font_scale, 
