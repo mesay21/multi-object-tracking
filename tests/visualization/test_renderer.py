@@ -116,3 +116,22 @@ class TestDrawFrame:
         frame = blank_frame()
         det = make_det(x1=10.7, y1=20.3, x2=50.9, y2=100.1)
         draw_frame(frame, [(det, 0)]) #Should not aise error
+
+class TestTrackColor:
+
+    def test_returns_tuple_of_three(self):
+        color = _track_color(0)
+        assert isinstance(color, tuple)
+        assert len(color) == 3
+    
+    def test_values_in_valid_range(self):
+        for track_id in range(200):
+            color = _track_color(track_id)
+            assert all(50 <= v <= 255 for v in color)
+    
+    def test_same_id_returns_same_color(self):
+        assert _track_color(7) == _track_color(7)
+    
+    def test_diffrent_ids_different_colors(self):
+        colors = {_track_color(i) for i in range(10)}
+        assert len(colors) > 1
