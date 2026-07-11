@@ -11,6 +11,7 @@ Tests covered:
 
 from __future__ import annotations
 
+from os import path
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -195,4 +196,33 @@ class TestVideoWriter:
     def test_custom_fourcc_accepted(self, tmp_path: Path):
         output = tmp_path / "out.avi"
         with VideoWriter(output, FPS, (WIDTH, HEIGHT), fourcc="XVID") as vw:
-            vw.write(blank_frame())                
+            vw.write(blank_frame())   
+
+class TestDisplayFrame:
+
+    def test_returns_true_when_q_not_pressed(self):
+        with patch("cv2.imshow"), patch("cv2.waitKey", return_value=0):
+            result = display_frame(blank_frame)
+
+        assert result is True
+
+    def test_returns_false_when_q_pressed(self):
+        with patch("cv2.imshow"), patch("cv2.waitKey", return_value=ord("q")), \
+            patch("cv2.destroyAllWindows"):
+            result = display_frame(blank_frame()) 
+
+        assert result is False
+
+    def test_destroys_windows_on_q(self):            
+        with patch("cv2.imshow"), patch("cv2.waitKey", return_value=ord("q")), \
+            patch("cv2.destroyAllWindows") as mockdestroy:
+            display_frame(blank_frame()) 
+        mockdestroy.assert_called_once()
+    
+    def test_imshow_called_with_frame(self):
+        frame = blank_frame()
+
+        with patch("cv2.imshow") as mock_show, patch("cv2.waitKey", return_value=0):
+            display_frame(frame, window_name="Test")
+
+        mock_show.assert_called_once_with("Test", frame)
