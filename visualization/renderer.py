@@ -9,7 +9,7 @@ from core.detection import Detection
 
 def draw_frame(
     image: np.ndarray,
-    tracks: list[tuple(Detection, int)]
+    tracks: list[tuple[Detection, int]]
 ) -> np.ndarray:
     """
     Draw bboxes and track IDs on a copy of the frame.
@@ -18,15 +18,15 @@ def draw_frame(
         image: BGR uint8 np.ndarray of shape (H, W, 3)
         tracks: List of (Detection, track_id) from Tracker.update()
     Returns:
-        Annotated copy of the frame. Original is modified.
+        Annotated copy of the frame. Original is not modified.
     """
     img_copy = image.copy()
 
     for detection, track_id in tracks:
         color = _track_color(track_id)
         thickness = _box_thickness(image)
-        x1, y1 = detection.x1, detection.y1
-        x2, y2 = detection.x2, detection.y2
+        x1, y1 = int(detection.x1), int(detection.y1)
+        x2, y2 = int(detection.x2), int(detection.y2)
         score = detection.score
         cv2.rectangle(img_copy, (x1, y1), (x2, y2), color, thickness)
         label = f"ID: {track_id} | {score:.2f}"
@@ -86,7 +86,7 @@ def _box_thickness(image: np.ndarray) -> int:
         Integer pixel thickness.
     """
     H, W, _ = image.shape
-    thickness = max(2, max(H, W)//500)
+    thickness = max(2, int(max(H, W)/500))
 
     return thickness
 
@@ -108,19 +108,29 @@ class VideoWriter:
         self,
         output_path: str | Path,
         fps: int,
-        frame_size: tuple(int, int),
+        frame_size: tuple[int, int],
         fourcc: str = 'mp4v'
     ) -> None:
         self.output_path = output_path
         self.fps = fps
         self.frame_size = frame_size
         self.fourcc = fourcc
+        self.writer = None
     
     def __enter__(self) -> VideoWriter:
-        ...
+        fourcc = cv2.VideoWriter_fourcc(*self.fourcc)
+        self.writer = cv2.VideoWriter(
+            str(self.output_path), 
+            fourcc=fourcc,
+            fps=self.fps,
+            frameSize=self.frame_size
+        )
+        return self
+
     
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        ...
+        if not self.writer is None:
+            self.writer.release()
     
     def write(self, frame: np.ndarray) -> None:
         """
@@ -128,4 +138,26 @@ class VideoWriter:
         Args:
             frame: BGR uint8 np.ndarray of shape (H, W, 3)
         """
-        ...
+        self.writer.write(frame)
+
+def display_frame(
+    frame: np.ndarray,
+    window_name: str = "SORT Tracker"
+) -> bool:
+    """
+    Diplay a frame live using cv2.imshow.
+
+    Args:
+        frame: BGR uint8 np.ndarray of shape (H, W, 3)
+        window_name: OpenCV window title.
+    
+    Returns:   
+        False if 'q was pressed (signal to stop), True otherwise.
+    """
+    cv2.imshow(window_name, frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        cv2.destroyAllWindows()
+        return False
+    
+    return True
