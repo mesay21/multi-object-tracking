@@ -12,7 +12,6 @@ Tests covered:
 from __future__ import annotations
 
 from pathlib import Path
-from socket import IP_DEFAULT_MULTICAST_TTL
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -147,3 +146,53 @@ class TestBoxThickness:
     def test_4k_frame_thickness_above_minimum(self):
         frame_4k = blank_frame(2160, 3840)
         assert _box_thickness(frame_4k) > 2
+
+class TestVideoWriter:
+
+    def test_writer_is_none_before_enter(self, tmp_path: Path):
+        vw = VideoWriter(tmp_path / "out.mp4", fps=FPS, frame_size=(WIDTH, HEIGHT))
+        assert vw.writer is None
+    
+    def test_output_file_created_on_enter(self, tmp_path: Path):
+        output = tmp_path / "out.mp4"
+        with VideoWriter(output, FPS, (WIDTH, HEIGHT)) as writer:
+            pass
+
+        assert output.exists()
+    
+    def test_writer_released_on_exit(self, tmp_path: Path):
+        output = tmp_path / "out.mp4"
+        with VideoWriter(output, FPS, (WIDTH, HEIGHT)) as vw:
+            inner_writer = vw.writer
+        
+        assert not inner_writer.isOpened()
+
+    def test_writer_released_on_exception(self, tmp_path: Path):
+        output = tmp_path / "out.mp4"
+        inner_writer = None
+        try:
+            with VideoWriter(output, FPS, (WIDTH, HEIGHT)) as vw:
+                inner_writer = vw.writer
+                raise RuntimeError("simulated")
+        except RuntimeError:
+            pass
+        assert inner_writer is not None
+        assert not inner_writer.isOpened()
+    
+    def test_returns_self_on_enter(self, tmp_path: Path):
+        output = tmp_path / "out.mp4"
+        with VideoWriter(output, FPS, (WIDTH, HEIGHT)) as vw:
+            assert isinstance(vw, VideoWriter)
+    
+    def test_output_file_none_empty_after_write(self, tmp_path: Path):
+        output = tmp_path / "out.mp4"
+        with VideoWriter(output, FPS, (WIDTH, HEIGHT)) as vw:
+            for _ in range(5):
+                vw.write(blank_frame())
+
+        assert output.stat().st_size > 0
+
+    def test_custom_fourcc_accepted(self, tmp_path: Path):
+        output = tmp_path / "out.avi"
+        with VideoWriter(output, FPS, (WIDTH, HEIGHT), fourcc="XVID") as vw:
+            vw.write(blank_frame())                
