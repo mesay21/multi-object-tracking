@@ -135,3 +135,15 @@ class TestTrackColor:
     def test_diffrent_ids_different_colors(self):
         colors = {_track_color(i) for i in range(10)}
         assert len(colors) > 1
+
+class TestBoxThickness:
+    
+    def test_returns_int(self):
+        assert isinstance(_box_thickness(blank_frame()), int)
+    
+    def test_default_thickness_is_two(self):
+        tiny = blank_frame(100, 100)
+        assert _box_thickness(tiny) >= 2
+    def test_4k_frame_thickness_above_minimum(self):
+        frame_4k = blank_frame(2160, 3840)
+        assert _box_thickness(frame_4k) > 2
