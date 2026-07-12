@@ -143,7 +143,7 @@ class FasterRCNNDetector(BaseDetector):
             if score < self.conf_threshold:
                 break
             
-            if int(label) in self.class_ids:
+            if not int(label) in self.class_ids:
                 continue
             
             x1, y1, x2, y2 = box.tolist()
