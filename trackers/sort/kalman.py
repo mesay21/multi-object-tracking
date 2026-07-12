@@ -80,6 +80,7 @@ class KalmanBoxTracker:
         self._R = self._build_measurement_noise_covariance()
         #We use Joseph form for numarically stable covariance update 
         self._I = np.eye(self._dim_x, dtype=np.float64)
+        self._last_score: float = detection.score
 
 
     def _init_state(self) -> np.ndarray:
@@ -222,6 +223,8 @@ class KalmanBoxTracker:
         #Update convariance 
         I_KH = self._I - K @ self._H
         self._P = I_KH @ self._P @ I_KH.T + K @ self._R @ K.T
+        #Update detection score
+        self._last_score = detection.score
     
     def get_state(self) -> Detection:
         """
@@ -247,7 +250,7 @@ class KalmanBoxTracker:
             cy=float(cy),
             s=float(s),
             r=float(r),
-            score=0.0,
+            score=self._last_score,
             class_id=0
         )
     

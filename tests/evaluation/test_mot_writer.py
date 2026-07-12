@@ -1,0 +1,266 @@
+"""
+Unit tests for evaluation.mot_writer.MOTWriter
+
+Tests covered:
+    - file opened/closed correctly
+    - correct rows written per frame
+    - MOTChallange column format and values
+    - correct output across multiple frames
+    - empty track list writes nothing
+    - edge case : zero score, large coordinates, fractional boxes
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from core.detection import Detection
+from evaluation.mot_writer import MOTWriter
+
+
+def make_det(
+    x1: float = 100.0,
+    y1: float = 200.0,
+    x2: float = 200.0,
+    y2: float = 400.0,
+    score: float = 0.9
+) -> Detection:
+    return Detection(x1=x1, y1=y1, x2=x2, y2=y2, score=score, class_id=1)
+
+def read_lines(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines()
+
+def parse_row(line: str) -> list[str]:
+    return line.strip().split(",")
+
+class TestContextManager:
+
+    def test_file_created_on_enter(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            assert output.exists()
+    
+    def test_file_closed_on_exit(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            pass
+        assert writer._file.closed
+    
+    def test_file_closed_on_exception(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        try:
+            with MOTWriter(output) as writer:
+                raise RuntimeError("Simulated error")
+        except RuntimeError:
+            pass
+        assert writer._file.closed
+
+    def test_no_file_handle_before_enter(self, tmp_path: Path):
+         writer = MOTWriter(tmp_path / "tracks.txt")
+         assert writer._file is None
+    
+    def test_returns_self_on_enter(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            assert isinstance(writer, MOTWriter)
+
+class TestWrite:
+
+    def test_tracks_are_written_correctly(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0), (make_det(), 1)])
+        lines = read_lines(output)
+        assert len(lines) == 2
+
+    def test_empty_tracks_writes_no_rows(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [])
+        assert output.read_text() == ""
+
+    def test_frame_index_written_correctly(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(42, [(make_det(), 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[0]) == 42
+
+    def test_track_id_index_written_correctly(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(42, [(make_det(), 7)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[1]) == 7    
+
+class TestFormatRow:
+
+    def test_row_has_10_cols(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert len(row) == 10  
+
+    def test_bb_left_is_x1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=100.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[2]) == pytest.approx(100.0, abs=0.01)
+
+    def test_bb_top_is_y1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=90.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[3]) == pytest.approx(90.0, abs=0.01)
+
+    def test_bb_width_is_x2_minus_x1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=90.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[4]) == pytest.approx(100, abs=0.01) #200.0 - 100.0
+
+    def test_bb_height_is_y2_minus_y1(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=100.0, y1=90.0, x2=200.0, y2=100.0)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[5]) == pytest.approx(10.0, abs=0.01) #100.0 - 90.0
+
+    def test_conf_is_detection_score(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(score=0.85)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[6]) == pytest.approx(0.85, abs=0.001)
+
+    def test_last_three_cols_are_minus_one(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+        
+        row = parse_row(read_lines(output)[0])
+        assert float(row[7]) == -1.0
+        assert float(row[8]) == -1.0
+        assert float(row[9]) == -1.0
+
+    def test_row_ends_with_newline(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+        
+        row = output.read_text(encoding="utf-8")
+        assert row.endswith("\n")
+
+class TestMultipleFrames:
+
+    def test_multiple_frames_written_inorder(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+            writer.write(2, [(make_det(), 0)])
+            writer.write(3, [(make_det(), 0)])
+
+        lines = read_lines(output)
+        assert len(lines) == 3
+        frame_ids = [int(parse_row(l)[0]) for l in lines]
+        assert frame_ids == [1, 2, 3]
+    def test_multiple_tracks_per_frame(self, tmp_path):    
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0), (make_det(), 1)])
+            writer.write(2, [(make_det(), 0), (make_det(), 1)])
+            writer.write(3, [(make_det(), 0), (make_det(), 1)])
+
+        lines = read_lines(output)
+        assert len(lines) == 6 # 2 detections per frame x 3 frames
+    
+    def test_track_ids_preserved_per_frame(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 5)])
+            writer.write(2, [(make_det(), 5)])
+            writer.write(3, [(make_det(), 5)])
+        lines = read_lines(output)
+        track_ids = [int(parse_row(l)[1]) for l in lines]
+        assert track_ids == [5, 5, 5]
+    
+    def test_empty_frame_skipped(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 5)])
+            writer.write(2, [])
+            writer.write(3, [(make_det(), 5)])
+        lines = read_lines(output)   
+        assert len(lines) == 2
+        frame_ids = [int(parse_row(l)[0]) for l in lines] 
+        assert frame_ids == [1, 3]  
+
+class TestEdgeCases:
+
+    def test_large_coordinates(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=0, y1=0, x2=3840, y2=2160)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert float(row[4]) == pytest.approx(3840.0, abs=0.01)
+        assert float(row[5]) == pytest.approx(2160.0, abs=0.01)  
+
+    def test_fractional_coordinates(self, tmp_path):
+        output = tmp_path / "tracks.txt"
+        det = make_det(x1=10.5, y1=20.3, x2=50.7, y2=100.9)
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert float(row[2]) == pytest.approx(10.5, abs=0.01)
+        assert float(row[3]) == pytest.approx(20.3, abs=0.01)  
+
+    def test_large_frame_index(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det()
+        with MOTWriter(output) as writer:
+            writer.write(100000, [(det, 0)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[0]) == 100000
+
+    def test_large_track_ids(self, tmp_path: Path):
+        output = tmp_path / "tracks.txt"
+        det = make_det()
+        with MOTWriter(output) as writer:
+            writer.write(1, [(det, 9999)])
+
+        row = parse_row(read_lines(output)[0])
+        assert int(row[1]) == 9999
+    
+    def test_file_created_in_nested_directory(self, tmp_path: Path):
+        nested = tmp_path / "tracker" / "sort" / "data"
+        nested.mkdir(parents=True)
+        output = nested / "tracks.txt"
+        with MOTWriter(output) as writer:
+            writer.write(1, [(make_det(), 0)])
+
+        assert output.exists()
+        assert len(read_lines(output)) == 1      
+    
