@@ -13,6 +13,7 @@ dependencies = [
     "scipy>=1.18.0",
     "torch>=2.12.1",
     "torchvision>=0.27.1",
+    "tqdm>=4.68.4",
 ]
 
 [build-system]
