@@ -17,12 +17,12 @@ from __future__ import annotations
 import numpy as np
 import torch
 from torchvision.models.detection import (
-    FasterRCNN_ResNet50_FPN_V2_Wights,
+    FasterRCNN_ResNet50_FPN_V2_Weights,
     fasterrcnn_resnet50_fpn_v2
 )
 from loguru import logger
 
-from core.detections import Detection
+from core.detection import Detection
 from detectors.base import BaseDetector
 
 class FasterRCNNDetector(BaseDetector):
@@ -56,7 +56,7 @@ class FasterRCNNDetector(BaseDetector):
         
         logger.info(f"Loading Faster-RCNN ResNet-50 FPN v2 on {self.device} ...")
 
-        weights = FasterRCNN_ResNet50_FPN_V2_Wights.DEFAULT
+        weights = FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
         self._model = fasterrcnn_resnet50_fpn_v2(weights=weights)
         self._model.to(self.device)
         self._model.eval()
@@ -87,9 +87,8 @@ class FasterRCNNDetector(BaseDetector):
         """
         logger.info("Warming up Faster-RCNN...")
         dummy = torch.zeros(3, 640, 640, dtype=torch.float32, device=self.device)
-
         with torch.no_grad():
-            self._model(dummy)
+            self._model([dummy])
         
         logger.info("Warmup complete")
 
