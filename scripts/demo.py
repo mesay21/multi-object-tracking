@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import cv2
+from loguru import logger
 
 from core.detection import Detection
 from datasets.frame_iterator import FrameIterator
@@ -40,6 +41,9 @@ def parse_args() -> argparse.Namespace:
     #Display
     parser.add_argument("--live", action="store_true", help="Display frames live")
 
+    #Profile
+    parser.add_argument("--profile", action="store_true", help="Print percomponenet timing breakdown")
+
     return parser.parse_args()
 
 def get_video_metadata(video_path: Path) -> tuple[float, tuple[int, int]]:
@@ -64,7 +68,7 @@ def get_video_metadata(video_path: Path) -> tuple[float, tuple[int, int]]:
     cap.release()
     return (fps, (width, height))
 
-def build_components(args: argparse.Namespace) -> tuple[SORTTracker, FrameIterator]:
+def build_components(args: argparse.Namespace) -> tuple[FasterRCNNDetector, SORTTracker, FrameIterator]:
     """
     Instantiate and warmup detector, tracker, and frame iterator.
 
@@ -72,7 +76,7 @@ def build_components(args: argparse.Namespace) -> tuple[SORTTracker, FrameIterat
         args: Parsed command line arguments.
 
     Returns:
-        (tracker, iterator)
+        (detector, tracker, iterator)
     """
     #Build and warmup detector
     detector = FasterRCNNDetector(
@@ -94,15 +98,17 @@ def build_components(args: argparse.Namespace) -> tuple[SORTTracker, FrameIterat
         conf_threshold=args.conf_threshold
     )
 
-    return tracker, iterator
+    return detector, tracker, iterator
 
 def run_loop(
     iterator: FrameIterator,
     tracker: SORTTracker,
     video_writer: VideoWriter | None,
     mot_writer: MOTWriter | None,
-    live: bool
-) -> tuple[int, float, set[int]]:
+    live: bool,
+    detector: FasterRCNNDetector | None,
+    profile: bool = False
+) -> tuple[int, float, set[int], float, float, float]:
     """
     Main tracking loop.
 
@@ -114,17 +120,39 @@ def run_loop(
         live: Whether to display frames via cv2.imshow.
 
     Returns:
-        (frames_processed, elapsed_seconds, unique_track_ids)
+        (frames_processed, elapsed_seconds, unique_track_ids, detection_time,
+        tracking_time, rendering_time)
     """
     frames_processed = 0
     unique_ids: set[int] = set()
+    detection_time = 0.0
+    tracking_time = 0.0
+    rendering_time = 0.0
     start = time.perf_counter()
 
     for frame in iterator:
-        tracks = tracker.update(frame.detections)
-        unique_ids.update(track[1] for track in tracks)
-        annotated_frame = draw_frame(frame.image, tracks)
+        if profile and detector is not None:
+            t0 = time.perf_counter()
+            detections = detector.detect(frame.image)
+            detection_time += time.perf_counter() - t0
+        else:
+            detections = frame.detections
+        #Tracking
+        if profile:
+            t0 = time.perf_counter()
+        tracks = tracker.update(detections)
+        if profile:
+            tracking_time += time.perf_counter() - t0
         
+        unique_ids.update(track[1] for track in tracks)
+        
+        #Rendering
+        if profile:
+            t0 = time.perf_counter()
+        annotated_frame = draw_frame(frame.image, tracks)
+        if profile:
+            rendering_time += time.perf_counter() - t0
+
         if video_writer is not None:
             video_writer.write(annotated_frame)
         
@@ -139,13 +167,23 @@ def run_loop(
         frames_processed += 1
 
     elapsed = time.perf_counter() - start
-    return frames_processed, elapsed, unique_ids    
+    return (
+        frames_processed, 
+        elapsed, 
+        unique_ids, 
+        detection_time, 
+        tracking_time, 
+        rendering_time
+    )    
 
 def print_summary(
     frames_processed: int,
     elapsed: float,
     unique_ids: set[int],
-    args: argparse.Namespace
+    args: argparse.Namespace,
+    detection_time: float = 0.0,
+    tracking_time: float = 0.0,
+    rendering_time: float = 0.0,
 ) -> None:
     """
     Print end of run summary.
@@ -158,14 +196,22 @@ def print_summary(
     """
 
     avg_fps = frames_processed / elapsed if elapsed > 0 else 0.0
-    print(f"\nProcessed {frames_processed} frames in {elapsed:.1f}s - avg {avg_fps:.1f} FPS")
-    print(f"Tracked objects: {len(unique_ids)} unique IDs")
+    logger.info(f"\nProcessed {frames_processed} frames in {elapsed:.1f}s - avg {avg_fps:.1f} FPS")
+    logger.info(f"Tracked objects: {len(unique_ids)} unique IDs")
+
+    if args.profile and frames_processed > 0:
+        logger.info(f"\nPer-frame timing breakdown (average over {frames_processed} frames):")
+        logger.info(f"Detection:  {detection_time / frames_processed * 1000:.1f} ms")
+        logger.info(f"Tracking update:  {tracking_time / frames_processed * 1000:.1f} ms")
+        logger.info(f"Rendering:  {rendering_time / frames_processed * 1000:.1f} ms")
+        total = (detection_time + tracking_time + rendering_time) / frames_processed * 1000
+        logger.info(f"Total pipeline: {total:.1f} ms -> {1000 / total:.1f} FPS")
 
     if args.output_video:
-        print(f"Output video: {args.output_video}")
+        logger.info(f"Output video: {args.output_video}")
 
     if args.output_mot:
-        print(f"Output MOT: {args.output_mot}")
+        logger.info(f"Output MOT: {args.output_mot}")
 
 def main() -> None:
     args = parse_args()
@@ -174,7 +220,7 @@ def main() -> None:
 
     #Build components
 
-    tracker, iterator = build_components(args)
+    detector, tracker, iterator = build_components(args)
 
     #Conditionally open output writers using ExitStack
     with contextlib.ExitStack() as stack:
@@ -188,18 +234,24 @@ def main() -> None:
         )) if args.output_mot is not None else None
     
         #Run main loop
-        frames_processed, elapsed, unique_ids = run_loop(
+        frames_processed, elapsed, unique_ids, \
+            det_time, track_time, render_time = run_loop(
             iterator=iterator,
             tracker=tracker,
             video_writer=vw,
             mot_writer=mw,
-            live=args.live
+            live=args.live,
+            detector=detector,
+            profile=args.profile
         )
     print_summary(
         frames_processed=frames_processed,
         elapsed=elapsed,
         unique_ids=unique_ids,
-        args=args
+        args=args,
+        detection_time=det_time,
+        tracking_time=track_time,
+        rendering_time=render_time
     )
 
 if __name__ == "__main__":
