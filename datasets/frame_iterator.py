@@ -90,7 +90,7 @@ class FrameIterator:
         fps = cap.get(cv2.CAP_PROP_FPS)
 
         logger.info(
-            f"Video iterator: ~{total} frmaes @ {fps}, source={self.source.name}"
+            f"Video iterator: ~{total} frames @ {fps}, source={self.source.name}"
         )
         frame_index = 1
 
